@@ -29,7 +29,7 @@
 </div>
 
 <div class="app">
-  <div class="top"><div class="brand">🐺 狼人殺 334 Online <span style="font-size:12px;color:#f1c75b">V8</span></div><div id="netBadge" class="badge">尚未連線</div></div>
+  <div class="top"><div class="brand">🐺 狼人殺 334 Online <span style="font-size:12px;color:#f1c75b">V9</span></div><div id="netBadge" class="badge">尚未連線</div></div>
 <div id="narratorSpotlight"><div class="narrator-title">🎙️ AI 旁白｜目前流程</div><div id="narratorSpotlightMessage" class="narrator-message">等待遊戲開始</div></div>
   <div class="layout">
     <aside class="panel">
@@ -85,16 +85,11 @@ function safeStateFor(seat){const g=JSON.parse(JSON.stringify(game));if(game.pha
 function sendState(conn){if(!conn||!conn.open)return;const seat=conn.playerId?game.players.findIndex(p=>p.id===conn.playerId):conn.seat;if(seat>=0)conn.seat=seat;conn.send({type:'state',game:safeStateFor(seat),seat})}
 function broadcast(){if(!isHost)return;conns.forEach(sendState);render()}
 function addHuman(name,id,conn=null){if(game.players.length>=MAX)return-1;const seat=game.players.length;game.players.push({id,name:name||'玩家',ai:false,role:'',dead:false});if(conn)conn.seat=seat;return seat}
-function fillAI(){while(game.players.length<MAX)game.players.push({id:'ai_'+uid(),name:'AI玩家',ai:true,role:'',dead:false,aiProfile:null,aiMemory:{sus:{},trust:{},claims:{},notes:[],lastVote:null}})}
-function shuffleSeatsAtStart(){
- const old=[...game.players];
- shuffle(game.players);
- game.players.forEach((p,i)=>{p.seat=i});
- // Remap every live P2P connection by player id.
- conns.forEach(c=>{if(c&&c.playerId){const ns=game.players.findIndex(p=>p.id===c.playerId);if(ns>=0)c.seat=ns}});
- const me=game.players.findIndex(p=>p.id===myId);
- if(me>=0)mySeat=me;
- game.seatsShuffled=true;
+function fillAI(){
+ const labels=['A','B','C','D','E','F','G','H','I','J'];let n=0;
+ while(game.players.length<MAX){
+   game.players.push({id:'ai_'+uid(),name:'AI玩家'+labels[n++],ai:true,role:'',dead:false,aiProfile:null,aiMemory:{sus:{},trust:{},claims:{},notes:[],lastVote:null,spokenAbout:{},roundReads:{}}});
+ }
 }
 function assignRoles(){const d=shuffle([...ROLE_DECK]);game.players.forEach((p,i)=>{p.role=d[i];p.seat=i})}
 function startGame(){if(!isHost||game.started)return;fillAI();shuffleSeatsAtStart();assignRoles();ensureAIProfiles();game.started=true;game.phase='reveal';game.round=0;game.confirmed={};game.chat=[];game.players.forEach((p,i)=>{if(p.ai)game.confirmed[i]=true});roleDrawn=false;selectedSeat=null;log(`10 個座位已隨機洗牌，身份牌也已重新洗牌：${game.players.filter(p=>!p.ai).length} 位真人、${game.players.filter(p=>p.ai).length} 位 AI。每位真人請只在自己的裝置抽卡確認身份。`);broadcast();openRoleModalIfNeeded();checkRevealDone()}
@@ -114,14 +109,21 @@ const AI_PROFILES=[
  {id:'role',label:'身份派',aggr:.5,claim:.8,bus:.4,trustVote:.85,trustSpeech:1.0,style:'優先分析預言家與神職資訊'},
  {id:'meta',label:'綜合派',aggr:.6,claim:.45,bus:.45,trustVote:1.15,trustSpeech:1.1,style:'綜合發言、票型、站邊與身份資訊'}
 ];
+
+const AI_MOODS=[
+ {id:'cold',risk:.25},{id:'sharp',risk:.7},{id:'soft',risk:.15},
+ {id:'hunter',risk:.5},{id:'chaos',risk:.8},{id:'steady',risk:.35}
+];
+
 function ensureAIProfiles(){
  game.players.forEach((p,i)=>{
    if(!p.ai)return;
    if(!p.aiProfile){
      const base=AI_PROFILES[i%AI_PROFILES.length];
-     p.aiProfile={...base,noise:(Math.random()*.28-.14),confidence:.45+Math.random()*.35};
+     const mood=AI_MOODS[(i*3+1)%AI_MOODS.length];
+     p.aiProfile={...base,mood:mood.id,risk:mood.risk,noise:(Math.random()*.34-.17),confidence:.35+Math.random()*.5,bluff:.15+Math.random()*.55,loyalty:.25+Math.random()*.65};
    }
-   if(!p.aiMemory)p.aiMemory={sus:{},trust:{},claims:{},notes:[],lastVote:null};
+   if(!p.aiMemory)p.aiMemory={sus:{},trust:{},claims:{},notes:[],lastVote:null,spokenAbout:{},roundReads:{}};
  });
 }
 function parseClaim(text){
@@ -155,56 +157,58 @@ function analyzeStatement(viewer,msg){
 }
 function updateAIMemory(viewer){
  ensureAIProfiles();
- const p=game.players[viewer]; if(!p?.ai)return;
- p.aiMemory.sus={};p.aiMemory.trust={};p.aiMemory.claims={};
- (game.chatHistory||[]).forEach(m=>analyzeStatement(viewer,m));
- // vote history: who voted whom matters
+ const p=game.players[viewer];if(!p?.ai)return;
+ const mem=p.aiMemory,prof=p.aiProfile||AI_PROFILES[0];
+ mem.sus={};mem.trust={};mem.claims={};mem.spokenAbout={};
+ (game.chatHistory||[]).forEach(m=>{
+   const text=String(m.text||''),sp=m.seat;
+   if(sp==null||sp===viewer)return;
+   const claim=parseClaim(text);if(claim)mem.claims[sp]=claim;
+   const targets=mentionsInText(text);
+   targets.forEach(target=>{
+     if(target===sp)return;
+     let d=0;
+     if(/查殺|狼人|鐵狼|狼面|狼坑|想出|出他|投他|踩|不信|可疑|怪/.test(text))d+=1.35*(prof.trustSpeech||1);
+     if(/金水|好人|做好|偏好|相信|保|不像狼/.test(text))d-=.8*(prof.trustSpeech||1);
+     mem.sus[target]=(mem.sus[target]||0)+d;
+   });
+   if(/改口|我收回|前面講錯|剛剛說錯/.test(text))mem.sus[sp]=(mem.sus[sp]||0)+.9;
+   if(/不知道|沒想法|隨便|都可以/.test(text))mem.sus[sp]=(mem.sus[sp]||0)+.25;
+   if(/先聽|保留|不打死/.test(text))mem.trust[sp]=(mem.trust[sp]||0)+.08;
+ });
  for(const row of (game.voteHistory||[])){
-   const voter=row.voterId ?? row.voter ?? row.seat;
-   const target=row.targetId ?? row.target;
-   if(target==null)continue;
-   p.aiMemory.sus[target]=(p.aiMemory.sus[target]||0)+.45*(p.aiProfile?.trustVote||1);
-   if(voter!=null && voter!==viewer){
-     // voting with AI's current suspicion earns slight trust
-     if((p.aiMemory.sus[target]||0)>2)p.aiMemory.trust[voter]=(p.aiMemory.trust[voter]||0)+.18;
-   }
+   const voter=row.voterSeat ?? row.voter ?? row.seat ?? row.voterId;
+   const target=row.target;
+   if(target==null||target<0)continue;
+   mem.sus[target]=(mem.sus[target]||0)+.35*(prof.trustVote||1);
+   if(voter!=null&&voter!==viewer&&(mem.sus[target]||0)>2)mem.trust[voter]=(mem.trust[voter]||0)+.12;
  }
+ mem.roundReads[game.round]={sus:{...mem.sus},trust:{...mem.trust}};
 }
 function expertSuspicion(viewer){
  ensureAIProfiles();updateAIMemory(viewer);
  const self=game.players[viewer],prof=self.aiProfile||AI_PROFILES[0],mem=self.aiMemory;
- const score={}; game.players.forEach((p,i)=>score[i]=0);
- for(const [k,v] of Object.entries(mem.sus||{}))score[+k]+=v;
- for(const [k,v] of Object.entries(mem.trust||{}))score[+k]-=v*.7;
- // private role knowledge
+ const score={};game.players.forEach((p,i)=>score[i]=0);
+ Object.entries(mem.sus||{}).forEach(([k,v])=>score[+k]+=v);
+ Object.entries(mem.trust||{}).forEach(([k,v])=>score[+k]-=v*.55);
+ if(self.role==='預言家'){
+   Object.entries(game.seerChecks||{}).forEach(([i,r])=>score[+i]+=String(r).includes('狼人')?50:-18);
+   Object.entries(mem.claims||{}).forEach(([i,r])=>{if(r==='預言家'&&+i!==viewer)score[+i]+=8*(prof.claim||1)});
+ }
  if(self.role==='狼人'){
    game.players.forEach((p,i)=>{
-     if(p.role==='狼人'){
-       const publicHeat=score[i]||0;
-       score[i]+= publicHeat>5 ? -(prof.bus*1.5) : -5.5;
+     if(p.role==='狼人'&&i!==viewer){
+       const heat=score[i]||0;
+       score[i]+=heat>4.5&&prof.loyalty<.6?-1.5:-12;
      }
    });
  }
- if(self.role==='預言家'){
-   Object.entries(game.seerChecks||{}).forEach(([i,r])=>{
-     score[+i]+=String(r).includes('狼人')?10:-5.5;
-   });
+ if(self.role==='女巫'||self.role==='獵人'){
+   Object.entries(mem.claims||{}).forEach(([i,r])=>{if(r===self.role&&+i!==viewer)score[+i]+=4.5});
  }
- // role-claim reasoning
- const claims=mem.claims||{};
- const seerClaimers=Object.entries(claims).filter(([,r])=>r==='預言家').map(([i])=>+i);
- if(seerClaimers.length>1){
-   seerClaimers.forEach(i=>score[i]+=1.3*prof.claim);
- }
- if(self.role==='預言家'){
-   seerClaimers.filter(i=>i!==viewer).forEach(i=>score[i]+=3.3*prof.claim);
- }
- // dead players cannot be targets
- game.players.forEach((p,i)=>{if(p.dead)score[i]=-999;if(i===viewer)score[i]=-999});
- // individual imperfection so AIs disagree
- Object.keys(score).forEach(k=>{
-   const i=+k;
-   if(score[i]>-900)score[i]+=((Math.sin((viewer+1)*17+(i+1)*31+game.round*13)+1)/2-.5)*.55 + (prof.noise||0);
+ game.players.forEach((p,i)=>{
+   if(p.dead||i===viewer)score[i]=-999;
+   else score[i]+=((Math.sin((viewer+3)*19+(i+5)*23+game.round*11)+1)/2-.5)*.45+(prof.noise||0);
  });
  return score;
 }
@@ -246,169 +250,117 @@ function safeCandidateReads(viewer){
    .sort((a,b)=>b.score-a.score);
 }
 function expertAISpeech(viewer){
- ensureAIProfiles();
- updateAIMemory(viewer);
+ ensureAIProfiles();updateAIMemory(viewer);
  const self=game.players[viewer],prof=self.aiProfile||AI_PROFILES[0];
- const evidence=realEvidenceLevel(viewer);
- const spoken=spokenSeatsBefore(viewer);
- const reads=safeCandidateReads(viewer);
+ const spoken=spokenSeatsBefore(viewer),evidence=realEvidenceLevel(viewer),reads=safeCandidateReads(viewer),claims=self.aiMemory?.claims||{};
+ const pick=(arr)=>arr[(viewer*3+game.round)%arr.length];
 
- // 預言家可用自己的真實查驗資訊，即使第一輪前面沒人說話
+ if(self.role==='狼人'){
+   const wolves=aliveSeats().filter(i=>i!==viewer&&game.players[i].role==='狼人');
+   const nonwolves=aliveSeats().filter(i=>i!==viewer&&game.players[i].role!=='狼人');
+   if(game.round===1&&evidence.total===0)return pick(['前面沒資訊，我先聽。','現在硬點人沒意義，先聽後面。','第一輪先不亂踩。']);
+   if(prof.bluff>.55&&!Object.values(claims).includes('預言家')&&game.round<=2&&nonwolves.length&&Math.random()<.16){
+     const fake=nonwolves[(viewer+game.round)%nonwolves.length];
+     return `我跳預言家，${fake+1}號查殺。今天先出他。`;
+   }
+   const mate=wolves.find(i=>(expertSuspicion(viewer)[i]||0)>3.5);
+   if(mate!=null&&prof.loyalty<.5)return `${mate+1}號我也不保，這輪真的偏差。`;
+   if(reads[0])return pick([`${reads[0].seat+1}號我先不信。`,`目前我最想出 ${reads[0].seat+1}號。`,`${reads[0].seat+1}號有點怪，我先盯。`]);
+   return '我先不站死，聽完再投。';
+ }
+
  if(self.role==='預言家'){
    const checks=Object.entries(game.seerChecks||{});
-   const wolf=checks.find(([,r])=>String(r).includes('狼人'));
-   const good=checks.find(([,r])=>String(r).includes('好人'));
-   if(wolf){
-     return `我是預言家，我昨晚查驗 ${+wolf[0]+1}號是【狼人陣營】。今天這張查殺是我的第一出人位，其他人的發言我再繼續聽。`;
-   }
-   if(good && evidence.spokenCount===0){
-     return `我是預言家，我昨晚查驗 ${+good[0]+1}號是【好人陣營】。目前前面還沒有人提供足夠發言，我先報查驗，不會硬點狼坑。`;
-   }
+   const wolf=checks.find(([i,r])=>String(r).includes('狼人')&&alive(+i));
+   const good=checks.find(([i,r])=>String(r).includes('好人')&&alive(+i));
+   if(wolf)return `我預言家，${+wolf[0]+1}號查殺。今天先出他。`;
+   if(good&&game.round===1)return `我預言家，${+good[0]+1}號金水。其他先聽。`;
+   if(good&&reads[0])return `我預言家，${+good[0]+1}號金水。我現在比較懷疑 ${reads[0].seat+1}號。`;
  }
 
- // 第一輪前置位、完全沒有真實資訊：禁止亂踩、亂說票型/矛盾
- if(game.round===1 && evidence.total===0){
-   const firstLines=[
-     '第一輪目前還沒有足夠資訊，我先不硬點狼坑。後面的人可以多聊一下自己的判斷，我會先聽。',
-     '現在資訊太少，我不會因為座位或沒發言就亂猜。先聽後置位，等有實際發言再分析。',
-     '前面還沒有可用資訊，這輪我先保留。等有人站邊、點人或跳身份之後我再判斷。',
-     '我現在沒有真實依據可以踩人，所以先不製造假資訊。後面有發言後，我再看誰的邏輯比較有問題。'
-   ];
-   return firstLines[(viewer+game.round)%firstLines.length];
+ if(self.role==='女巫'){
+   if(reads[0]&&reads[0].score>2.2)return pick([`${reads[0].seat+1}號我先放狼坑。`,`我現在最不信 ${reads[0].seat+1}號。`,`${reads[0].seat+1}號這輪我會重點看。`]);
+   return game.round===1?'資訊還少，我先不亂點。':'我先看上一輪票型，不急著拍身份。';
  }
 
- // 有人發言才可以分析那些「真的說過話的人」
+ if(self.role==='獵人'){
+   if(reads[0]&&reads[0].score>2)return `${reads[0].seat+1}號我不太認好。`;
+   return '目前沒鐵狼，我先聽。';
+ }
+
+ if(game.round===1&&evidence.total===0)return pick(['前面沒資訊，我先聽。','第一輪先不硬踩。','現在沒東西能盤，先過。','我先聽後面，暫時沒狼坑。']);
  if(reads.length){
-   const a=reads[0], b=reads[1];
-   const an=`${a.seat+1}號`, bn=b?`${b.seat+1}號`:null;
-   const high=a.score>=3.5, med=a.score>=1.5;
-
-   if(prof.id==='logic'){
-     if(high) return `${an}是我目前最需要重聽的位置，因為他已經講過的內容裡有幾個點對不上。${bn?`${bn}我先放第二順位。`:''} 但我只分析已經發言的人，後置位我不先預設。`;
-     if(med) return `${an}我先記一個問號，他剛剛的理由還不夠完整。其他還沒發言的人我不先判斷。`;
-     return `目前已經發言的人裡，我還沒有看到很明顯的矛盾。${an}我會再觀察，但不會現在就打死。`;
-   }
-   if(prof.id==='vote'){
-     if((game.voteHistory||[]).length===0)
-       return `現在還沒有上一輪票型可以看，所以這輪我只記錄已經發言者。${an}目前是我比較想再聽的人，但還不到出人的程度。`;
-     return `${an}是我目前票型加發言綜合後最不舒服的位置。${bn?`${bn}次之。`:''} 我會看這輪最後誰跟誰形成同一票。`;
-   }
-   if(prof.id==='pressure'){
-     return `${an}你已經發言過了，我先請你下一輪把理由講完整。${high?'我目前偏不信你的說法。':'我還沒打死你，但這個位置需要補邏輯。'}`;
-   }
-   if(prof.id==='quiet'){
-     return `目前能分析的只有已經發言的人。${an}我暫時放在觀察位，證據還不足，我不會把還沒說話的人硬塞進狼坑。`;
-   }
-   if(prof.id==='role'){
-     const claims=self.aiMemory?.claims||{};
-     const seers=Object.entries(claims).filter(([,r])=>r==='預言家').map(([i])=>+i);
-     if(seers.length>1) return `目前已經有人形成對跳，我會先拆預言家查驗與發言邏輯。單純誰先跳、誰講得兇都不是鐵證。`;
-     return `${an}目前在身份邏輯上是我最想追問的位置，但我只針對他已經說過的內容，不分析沒開口的人。`;
-   }
-   return `綜合目前真的出現過的發言，我會先看${an}${bn?`，再看${bn}`:''}。還沒發言的人我先不做預設。`;
+   const a=reads[0],b=reads[1];
+   if(a.score>=3.5)return pick([`${a.seat+1}號目前最像狼。`,`我這輪偏出 ${a.seat+1}號。`,`${a.seat+1}號我先掛狼坑。`,`先看 ${a.seat+1}號，這張最黑。`]);
+   if(a.score>=1.4)return pick([`${a.seat+1}號我先記問號。`,`目前比較不舒服的是 ${a.seat+1}號。`,`${a.seat+1}號先觀察。`,`我先盯 ${a.seat+1}號。`]);
+   if(b)return `目前 ${a.seat+1}、${b.seat+1}我都還沒完全放下。`;
  }
-
- // 第二輪以後若這輪前面還沒人講，可引用歷史，但要明說是上一輪資訊
- if(game.round>1){
-   const historical=aiTopReads(viewer,2).filter(x=>hasSpokenThisGame(x.seat));
-   if(historical.length){
-     const a=historical[0],b=historical[1];
-     return `這輪前面還沒有新發言，我先沿用上一輪留下的資訊。${a.seat+1}號是我目前最需要驗證的位置${b?`，${b.seat+1}號次之`:''}；有新內容我會再修正。`;
-   }
- }
-
- return '目前沒有足夠的真實發言或票型可以分析，我先保留，不會為了發言而硬編狼坑。';
+ return '現在資訊還不夠，我先不亂猜。';
 }
 function expertAIVoteTarget(viewer){
- const self=game.players[viewer];
- const choices=aliveSeats().filter(i=>i!==viewer);
- if(!choices.length)return -1;
- const score=expertSuspicion(viewer);
+ const self=game.players[viewer],score=expertSuspicion(viewer);
+ const choices=aliveSeats().filter(i=>i!==viewer);if(!choices.length)return -1;
  const spoken=choices.filter(i=>hasSpokenThisGame(i));
-
- // 狼人仍有夜間真實資訊，可策略投票
  if(self.role==='狼人'){
    const wolves=choices.filter(i=>game.players[i].role==='狼人');
-   const nonwolves=choices.filter(i=>game.players[i].role!=='狼人');
-   const hotWolf=wolves.sort((a,b)=>(score[b]||0)-(score[a]||0))[0];
-   if(hotWolf!=null && (score[hotWolf]||0)>5.5 && Math.random()<(self.aiProfile?.bus||.35)) return hotWolf;
+   const goods=choices.filter(i=>game.players[i].role!=='狼人');
+   const doomed=wolves.sort((a,b)=>(score[b]||0)-(score[a]||0))[0];
+   if(doomed!=null&&(score[doomed]||0)>5&&(self.aiProfile?.loyalty||.5)<.5)return doomed;
    const pool=spoken.filter(i=>game.players[i].role!=='狼人');
-   const use=pool.length?pool:nonwolves;
-   return use.sort((a,b)=>(score[b]||0)-(score[a]||0))[0] ?? choices[0];
+   const use=pool.length?pool:goods;
+   return use.sort((a,b)=>(score[b]||0)-(score[a]||0))[0]??-1;
  }
-
- // 好人 AI 第一輪只從「真的有發言的人」裡判斷
- if(game.round===1 && spoken.length){
+ if(self.role==='預言家'){
+   const kill=Object.entries(game.seerChecks||{}).find(([i,r])=>String(r).includes('狼人')&&alive(+i));
+   if(kill)return +kill[0];
+ }
+ if(game.round===1){
+   if(!spoken.length)return -1;
    return spoken.sort((a,b)=>(score[b]||0)-(score[a]||0))[0];
  }
-
- // 如果完全沒人說過話，才視為資訊不足，隨機投不如棄票
- if(!spoken.length && game.round===1) return -1;
-
  const pool=spoken.length?spoken:choices;
- return pool.sort((a,b)=>(score[b]||0)-(score[a]||0))[0];
+ return pool.sort((a,b)=>(score[b]||0)-(score[a]||0))[0]??-1;
 }
-function aiSuspicion(viewer){const score=game.players.map(()=>0),role=game.players[viewer]?.role,chats=allChats();const wolfWords=['狼','狼人','像狼','很狼','可疑','怪','踩','想投','票他','出他','不信','假','悍跳','爆狼','狼坑'];const goodWords=['好人','偏好','信','可信','金水','保','不像狼','認好'];const claimWords=['我是預言家','預言家','查驗','金水','查殺','我是女巫','我是獵人','獵人','女巫'];chats.forEach(m=>{const targets=mentionsInText(m.text);const neg=wolfWords.some(w=>m.text.includes(w)),pos=goodWords.some(w=>m.text.includes(w));targets.forEach(t=>{if(neg)score[t]+=1.7;if(pos)score[t]-=.9});if(claimWords.some(w=>m.text.includes(w))){score[m.seat]+=.35; if(role==='狼人')score[m.seat]+=1.1}if(/我覺得|我認為|我站|我投/.test(m.text))score[m.seat]-=.15;if(/不知道|隨便|沒資訊|都可以/.test(m.text))score[m.seat]+=.35});(game.voteHistory||[]).forEach(r=>{Object.entries(r.votes||{}).forEach(([pid,t])=>{const voter=game.players.findIndex(p=>p.id===pid);if(voter<0||t<0)return;if(game.players[t]?.role==='狼人'&&role!=='狼人')score[voter]-=.35;else if(role!=='狼人'&&game.players[t]?.role!=='狼人')score[voter]+=.12})});if(role==='預言家'){Object.entries(game.seerChecks||{}).forEach(([k,v])=>{score[+k]=v==='狼人陣營'?99:-99})}if(role==='狼人'){game.players.forEach((p,i)=>{if(p.role==='狼人')score[i]-=80})}score[viewer]=-999;game.players.forEach((p,i)=>{if(p.dead)score[i]=-999});return score}
-function bestByScore(list,scores,randomness=.65){if(!list.length)return-1;return list.map(i=>[i,scores[i]+(Math.random()-.5)*randomness]).sort((a,b)=>b[1]-a[1])[0][0]}
 function aiVoteTarget(seat){return expertAIVoteTarget(seat)}
 function aiSpeechText(seat){return expertAISpeech(seat)}
 function autoNightAI(){
  if(!isHost)return;
  if(game.phase==='night_wolf'){
-   // Every living AI wolf votes. Human wolves must vote themselves.
    game.players.forEach((p,i)=>{
      if(p.ai&&!p.dead&&p.role==='狼人'&&game.wolfVotes[p.id]===undefined){
        const choices=aliveSeats().filter(s=>game.players[s].role!=='狼人');
-       const scores=expertSuspicion(i);
-       game.wolfVotes[p.id]=bestByScore(choices,scores,1.55);
+       const scores=expertSuspicion(i),claims=p.aiMemory?.claims||{};
+       const power=choices.filter(s=>['預言家','女巫','獵人'].includes(claims[s]));
+       const target=power.length?power[0]:(choices.sort((a,b)=>(scores[a]||0)-(scores[b]||0))[0]??-1);
+       game.wolfVotes[p.id]=target;
      }
-   });
-   checkWolfDone();
+   });checkWolfDone();
  }else if(game.phase==='night_seer'){
    const s=game.players.findIndex(p=>!p.dead&&p.role==='預言家');
-   // No living seer: skip this phase. Human seer: WAIT for human action.
    if(s<0){setTimeout(()=>advanceNightSeer(),350);return}
    if(!game.players[s].ai)return;
    const checked=new Set(Object.keys(game.seerChecks||{}).map(Number));
    const fresh=aliveSeats().filter(i=>i!==s&&!checked.has(i));
    const choices=fresh.length?fresh:aliveSeats().filter(i=>i!==s);
    const scores=expertSuspicion(s);
-   const t=bestByScore(choices,scores,1.05);
-   if(t>=0){
-     game.seerTarget=t;
-     game.seerResult=faction(game.players[t].role);
-     game.seerChecks[t]=game.seerResult;
-     log(`AI 預言家已完成第 ${game.round} 夜查驗。`);
-   }
-   broadcast();
-   setTimeout(()=>advanceNightSeer(),900);
+   const target=choices.sort((a,b)=>(scores[b]||0)-(scores[a]||0))[0]??-1;
+   if(target>=0){game.seerTarget=target;game.seerResult=faction(game.players[target].role);game.seerChecks[target]=game.seerResult}
+   broadcast();setTimeout(()=>advanceNightSeer(),700);
  }else if(game.phase==='night_witch'){
    const w=game.players.findIndex(p=>!p.dead&&p.role==='女巫');
-   // No living witch: skip. Human witch: WAIT for human action.
    if(w<0){setTimeout(resolveNight,350);return}
    if(!game.players[w].ai)return;
-   const scores=expertSuspicion(w);
-   let acted=false;
-   // AI witch evaluates the knife target and keeps medicine strategically.
+   const scores=expertSuspicion(w);let acted=false;
    if(game.witch.antidote&&game.wolfTarget!=null){
-     const victim=game.wolfTarget;
-     const important=['預言家','獵人'].includes(game.players[victim].role);
-     const early=game.round<=2;
-     if(important || (early&&Math.random()<.72) || scores[victim]<0){
-       game.witch.save=true; game.witch.antidote=false; acted=true;
-     }
+     const victim=game.wolfTarget,vr=game.players[victim].role;
+     if(['預言家','獵人'].includes(vr)||game.round===1||scores[victim]<-1.2){game.witch.save=true;game.witch.antidote=false;acted=true}
    }
-   // Same night only one potion.
    if(!acted&&game.witch.poison){
      const choices=aliveSeats().filter(i=>i!==w&&i!==game.wolfTarget);
-     const t=bestByScore(choices,scores,.45);
-     if(t>=0 && scores[t]>(game.round<=1?4.2:2.45)){
-       game.witch.poisonTarget=t; game.witch.poison=false; acted=true;
-     }
+     const target=choices.sort((a,b)=>(scores[b]||0)-(scores[a]||0))[0];
+     if(target!=null&&(scores[target]||0)>(game.round===1?4.5:2.8)){game.witch.poisonTarget=target;game.witch.poison=false}
    }
-   log(`AI 女巫已完成第 ${game.round} 夜行動。`);
-   broadcast();
-   setTimeout(resolveNight,850);
+   broadcast();setTimeout(resolveNight,700);
  }
 }
 function submitWolfVote(seat,target){const p=game.players[seat];if(game.phase!=='night_wolf'||!p||p.dead||p.role!=='狼人')return;game.wolfVotes[p.id]=target;broadcast();checkWolfDone()}
@@ -424,7 +376,16 @@ function startSpeech(){game.phase='speech';game.speakerOrder=aliveSeats();game.s
 function currentSpeaker(){return game.speakerOrder[game.speakerPos]}
 function startTimer(){clearInterval(timerHandle);timerHandle=setInterval(()=>{if(isHost&&game.phase==='speech'){game.time++;broadcast()}},1000)}
 function nextSpeaker(){if(!isHost||game.phase!=='speech')return;const ended=currentSpeaker();if(ended!=null)log(`${ended+1}號結束發言。`);game.time=0;game.speakerPos++;if(game.speakerPos>=game.speakerOrder.length){clearInterval(timerHandle);log(`第 ${game.round} 輪所有玩家發言完畢，現在進入投票環節。`);beginVote()}else{broadcast();aiSpeakIfNeeded()}}
-function aiSpeakIfNeeded(){if(!isHost||game.phase!=='speech')return;const s=currentSpeaker(),p=game.players[s];if(p?.ai){setTimeout(()=>{const text=aiSpeechText(s);addChat(s,text,true);log(`${s+1}號 AI玩家：${text}`);broadcast();setTimeout(nextSpeaker,1200)},700)}}
+function aiSpeakIfNeeded(){
+ if(!isHost||game.phase!=='speech')return;
+ const s=currentSpeaker(),p=game.players[s];
+ if(p?.ai){
+   setTimeout(()=>{
+     const text=aiSpeechText(s);addChat(s,text,true);log(`${s+1}號 ${p.name}：${text}`);broadcast();
+     setTimeout(nextSpeaker,700+Math.floor(Math.random()*650));
+   },450+Math.floor(Math.random()*900));
+ }
+}
 function addChat(seat,text,ai=false){text=String(text||'').trim().slice(0,200);if(!text)return;const m={seat,name:game.players[seat].name,text,ai,round:game.round};game.chat.push(m);game.chatHistory=game.chatHistory||[];game.chatHistory.push(m);if(game.chat.length>120)game.chat.shift();if(game.chatHistory.length>500)game.chatHistory.shift()}
 function sendChat(){const text=$('chatInput').value.trim();if(!text)return;const s=currentSpeaker();const isSpeech=game.phase==='speech'&&mySeat===s&&alive(mySeat)&&!game.players[mySeat].ai;const isLast=game.phase==='last_words'&&mySeat===game.lastWordsSeat&&!game.players[mySeat].ai;if(!isSpeech&&!isLast){setStatus('現在不是你的發言時間。');return}if(isHost){if(isLast)game.lastWordsText=(game.lastWordsText?game.lastWordsText+' ':'')+text;addChat(mySeat,isLast?'【遺言】'+text:text,false);$('chatInput').value='';broadcast()}else{hostConn?.send({type:isLast?'lastWordsChat':'chat',text});$('chatInput').value=''}}
 function beginVote(){game.phase='vote';game.votes={};selectedSeat=null;log(`第 ${game.round} 輪投票開始：聊天室已鎖定，所有存活玩家各投一票。AI 會依照本局聊天內容與身份視角判斷。`);broadcast();game.players.forEach((p,i)=>{if(p.ai&&!p.dead)game.votes[p.id]=aiVoteTarget(i)});checkVoteDone()}
