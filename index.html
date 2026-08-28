@@ -29,7 +29,7 @@
 </div>
 
 <div class="app">
-  <div class="top"><div class="brand">🐺 狼人殺 334 Online <span style="font-size:12px;color:#f1c75b">V9.1</span></div><div id="netBadge" class="badge">尚未連線</div></div>
+  <div class="top"><div class="brand">🐺 狼人殺 334 Online <span style="font-size:12px;color:#f1c75b">V9.2</span></div><div id="netBadge" class="badge">尚未連線</div></div>
 <div id="narratorSpotlight"><div class="narrator-title">🎙️ AI 旁白｜目前流程</div><div id="narratorSpotlightMessage" class="narrator-message">等待遊戲開始</div></div>
   <div class="layout">
     <aside class="panel">
@@ -547,8 +547,34 @@ function updateNarrator(){
   if(t&&t!==lastNarration)narrate(t);
 }
 
-function createRoom(){if(typeof Peer==='undefined'){setStatus('連線模組尚未載入，請重新整理頁面後再試。');$('loadError').style.display='block';return}roomId=rid();myId=uid();isHost=true;peer=new Peer('ww-'+roomId);peer.on('open',()=>{mySeat=addHuman($('nameInput').value.trim()||'房主',myId);setStatus(`房間已建立：${roomId}\n把房號傳給朋友加入。`);log('房間建立成功');render()});peer.on('connection',conn=>{conns.push(conn);conn.on('data',m=>handleHostData(conn,m));conn.on('close',()=>{if(conn.seat!=null&&!game.started){const p=game.players[conn.seat];if(p){game.players.splice(conn.seat,1);conns.forEach(c=>{if(c.seat>conn.seat)c.seat--});log(`${p.name} 離開房間`);broadcast()}}})});peer.on('error',e=>setStatus('連線錯誤：'+e.type))}
-function joinRoom(){if(typeof Peer==='undefined'){setStatus('連線模組尚未載入，請重新整理頁面後再試。');$('loadError').style.display='block';return}roomId=$('roomInput').value.trim().toUpperCase();if(roomId.length!==6){setStatus('請輸入 6 碼房號');return}myId=uid();isHost=false;peer=new Peer();peer.on('open',()=>{hostConn=peer.connect('ww-'+roomId,{reliable:true});hostConn.on('open',()=>{hostConn.send({type:'hello',name:$('nameInput').value.trim()||'玩家',id:myId});setStatus('正在加入房間…')});hostConn.on('data',m=>{if(m.type==='welcome'){mySeat=m.seat;game=m.game;setStatus(`已加入房間 ${roomId}，你是 ${mySeat+1} 號。`);render()}else if(m.type==='state'){game=m.game;if(Number.isInteger(m.seat))mySeat=m.seat;render();openRoleModalIfNeeded()}else if(m.type==='reject')setStatus(m.reason)});hostConn.on('close',()=>setStatus('與房主斷線'))});peer.on('error',e=>setStatus('連線錯誤：'+e.type))}
+
+const TAB_ID=sessionStorage.getItem('werewolf_tab_id')||('tab_'+uid());
+sessionStorage.setItem('werewolf_tab_id',TAB_ID);
+let activeRoomLockKey=null;
+
+function roomLockKey(room){return 'werewolf_room_lock_'+String(room||'').toUpperCase()}
+function readRoomLock(room){
+ try{const raw=localStorage.getItem(roomLockKey(room));return raw?JSON.parse(raw):null}catch(e){return null}
+}
+function claimRoomLock(room){
+ const key=roomLockKey(room),old=readRoomLock(room);
+ if(old&&old.tabId&&old.tabId!==TAB_ID)return false;
+ try{
+   localStorage.setItem(key,JSON.stringify({tabId:TAB_ID,time:Date.now()}));
+   activeRoomLockKey=key;return true;
+ }catch(e){activeRoomLockKey=null;return true}
+}
+function releaseRoomLock(){
+ if(!activeRoomLockKey)return;
+ try{
+   const raw=localStorage.getItem(activeRoomLockKey),val=raw?JSON.parse(raw):null;
+   if(val?.tabId===TAB_ID)localStorage.removeItem(activeRoomLockKey);
+ }catch(e){}
+ activeRoomLockKey=null;
+}
+window.addEventListener('beforeunload',releaseRoomLock);
+function createRoom(){if(typeof Peer==='undefined'){setStatus('連線模組尚未載入，請重新整理頁面後再試。');$('loadError').style.display='block';return}roomId=rid();if(!claimRoomLock(roomId)){setStatus('同一個瀏覽器一次只能參加一位玩家。請改用其他瀏覽器、無痕視窗或另一台裝置。');return}myId=uid();isHost=true;peer=new Peer('ww-'+roomId);peer.on('open',()=>{mySeat=addHuman($('nameInput').value.trim()||'房主',myId);setStatus(`房間已建立：${roomId}\n把房號傳給朋友加入。`);log('房間建立成功');render()});peer.on('connection',conn=>{conns.push(conn);conn.on('data',m=>handleHostData(conn,m));conn.on('close',()=>{if(conn.seat!=null&&!game.started){const p=game.players[conn.seat];if(p){game.players.splice(conn.seat,1);conns.forEach(c=>{if(c.seat>conn.seat)c.seat--});log(`${p.name} 離開房間`);broadcast()}}})});peer.on('error',e=>{setStatus('連線錯誤：'+e.type);if(!game.started)releaseRoomLock()})}
+function joinRoom(){if(typeof Peer==='undefined'){setStatus('連線模組尚未載入，請重新整理頁面後再試。');$('loadError').style.display='block';return}roomId=$('roomInput').value.trim().toUpperCase();if(roomId.length!==6){setStatus('請輸入 6 碼房號');return}if(!claimRoomLock(roomId)){setStatus('同一個瀏覽器一次只能參加一位玩家。請改用其他瀏覽器、無痕視窗或另一台裝置。');return}myId=uid();isHost=false;peer=new Peer();peer.on('open',()=>{hostConn=peer.connect('ww-'+roomId,{reliable:true});hostConn.on('open',()=>{hostConn.send({type:'hello',name:$('nameInput').value.trim()||'玩家',id:myId});setStatus('正在加入房間…')});hostConn.on('data',m=>{if(m.type==='welcome'){mySeat=m.seat;game=m.game;setStatus(`已加入房間 ${roomId}，你是 ${mySeat+1} 號。`);render()}else if(m.type==='state'){game=m.game;if(Number.isInteger(m.seat))mySeat=m.seat;render();openRoleModalIfNeeded()}else if(m.type==='reject'){setStatus(m.reason);releaseRoomLock()}});hostConn.on('close',()=>setStatus('與房主斷線'))});peer.on('error',e=>{setStatus('連線錯誤：'+e.type);if(!game.started)releaseRoomLock()})}
 function handleHostData(conn,m){if(m.type==='hello'){if(game.started||game.players.length>=MAX){conn.send({type:'reject',reason:'房間已開始或已滿'});return}const seat=addHuman(m.name,m.id,conn);conn.playerId=m.id;conn.seat=seat;conn.send({type:'welcome',seat,roomId,game:safeStateFor(seat)});log(`${m.name} 加入房間`);broadcast()}else if(m.type==='confirmRole'&&conn.seat!=null){game.confirmed[conn.seat]=true;broadcast();checkRevealDone()}else if(m.type==='chat'&&conn.seat!=null){const s=currentSpeaker();if(game.phase==='speech'&&conn.seat===s&&alive(s)){addChat(s,m.text,false);broadcast()}}else if(m.type==='lastWordsChat'&&conn.seat!=null){if(game.phase==='last_words'&&conn.seat===game.lastWordsSeat){const text=String(m.text||'').trim().slice(0,200);if(text){game.lastWordsText=(game.lastWordsText?game.lastWordsText+' ':'')+text;addChat(conn.seat,'【遺言】'+text,false);broadcast()}}}else if(m.type==='vote'&&conn.seat!=null){if(game.phase==='vote'&&alive(conn.seat)){game.votes[game.players[conn.seat].id]=m.target;broadcast();checkVoteDone()}}else if(m.type==='action'&&conn.seat!=null)handleAction(conn.seat,m.action,m.target)}
 $('voiceBtn').onclick=()=>{voiceOn=!voiceOn;$('voiceBtn').textContent=voiceOn?'🔊 旁白語音：開':'🔇 旁白語音：關';if(!voiceOn&&'speechSynthesis'in window)speechSynthesis.cancel()};$('hostBtn').onclick=createRoom;$('joinBtn').onclick=joinRoom;$('startBtn').onclick=startGame;$('sendChatBtn').onclick=sendChat;$('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat()}});
 window.addEventListener('error', e=>{
