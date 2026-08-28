@@ -10,9 +10,14 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}body{margin:0;background:radial-gradient(circle at top,#202b46 0,#0b0e14 45%);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI","Microsoft JhengHei",sans-serif;min-height:100vh}.app{width:min(1320px,100%);margin:auto;padding:16px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.brand{font-size:26px;font-weight:1000}.badge{padding:7px 10px;border:1px solid var(--line);border-radius:999px;background:#1b2130;color:#cbd3df;font-size:13px}.layout{display:grid;grid-template-columns:330px 1fr;gap:12px}.panel{background:rgba(21,26,36,.96);border:1px solid #293145;border-radius:18px;padding:14px;box-shadow:0 18px 40px #0005}.input,.btn{font:inherit;border-radius:12px;min-height:46px}.input{width:100%;border:1px solid #364057;background:#0d121d;color:#fff;padding:11px 12px;outline:none}.btn{border:0;padding:10px 13px;font-weight:900;cursor:pointer;background:#35415b;color:#fff}.btn.primary{background:var(--blue)}.btn.good{background:var(--green);color:#06130c}.btn.danger{background:var(--red)}.btn.gold{background:var(--gold);color:#261f06}.btn.purple{background:var(--purple)}.btn:disabled{opacity:.38;cursor:not-allowed}.row{display:flex;gap:8px}.note,.small{color:var(--muted);font-size:12px;line-height:1.55}.title{margin:0 0 8px;font-size:14px;color:#cbd4e2}.roomcode{text-align:center;font-weight:1000;letter-spacing:4px;color:var(--gold);font-size:28px;padding:8px}.status{background:#0f1521;border-radius:12px;padding:10px;color:#c8d2e2;white-space:pre-line;min-height:42px}.phase{margin-bottom:12px;padding:12px 14px;background:linear-gradient(90deg,#222b3e,#161b27);border:1px solid #35405a;border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:10px}.phase-main{font-size:20px;font-weight:1000}.phase-sub{font-size:12px;color:#aab4c4;margin-top:3px}.board{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}.seat{border:1px solid #333d53;background:linear-gradient(180deg,#242c3e,#171c28);border-radius:15px;padding:10px;min-height:125px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;transition:.15s;position:relative}.seat:hover{transform:translateY(-1px)}.seat.me{outline:2px solid var(--blue)}.seat.dead{opacity:.46;filter:grayscale(.8)}.seat.selected{box-shadow:0 0 0 2px var(--red)}.seat.speaking{box-shadow:0 0 0 2px var(--gold),0 0 24px #f1c75b44}.num{font-size:11px;color:#7f8aa0}.name{font-size:17px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta{font-size:11px;color:#9facbf}.role{font-size:12px;font-weight:900;color:var(--gold)}.card-area{margin-top:12px;background:#0f1420;border:1px solid #2d374a;border-radius:14px;padding:12px}.card-title{font-size:16px;font-weight:1000}.card-text{color:#cbd5e5;margin-top:6px;line-height:1.6}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.chat{margin-top:12px;background:#0b1019;border:1px solid #2d374a;border-radius:14px;padding:10px}.chat-messages{height:190px;overflow:auto;background:#0e1420;border:1px solid #20283a;border-radius:10px;padding:5px}.msg{padding:6px 7px;border-bottom:1px solid #20283a;line-height:1.4;word-break:break-word}.msg:last-child{border-bottom:0}.who{font-weight:900;color:#89b7ff}.chat-row{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:8px}.timer{font-size:36px;font-weight:1000;color:var(--gold);font-variant-numeric:tabular-nums}.warn{display:none;margin-top:8px;background:#5c3516;border:1px solid #925b24;color:#ffd28b;padding:9px 10px;border-radius:10px;font-weight:900}.warn.show{display:block;animation:pulse .9s infinite alternate}@keyframes pulse{to{transform:scale(1.012)}}.log{height:180px;overflow:auto;background:#0d111a;border:1px solid #2b3447;border-radius:12px;padding:8px;font-size:12px;line-height:1.5}.log div{padding:4px 0;border-bottom:1px dashed #222a38}.modal{position:fixed;inset:0;background:#05070bd9;display:none;align-items:center;justify-content:center;padding:18px;z-index:50}.modal.show{display:flex}.modal-card{width:min(440px,100%);background:linear-gradient(180deg,#1c2230,#111620);border:1px solid #39445b;border-radius:22px;padding:20px;text-align:center;box-shadow:0 30px 80px #000b}.draw-card{margin:18px auto;width:210px;height:290px;border-radius:20px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%,#2a3653,#111725 65%);border:2px solid #455273;box-shadow:0 20px 50px #0009;font-size:26px;font-weight:1000;user-select:none}.draw-card.revealed{background:radial-gradient(circle at 50% 30%,#463e25,#171b25 70%);border-color:#a58c48}.modal h2{margin:0}.role-big{font-size:32px;color:var(--gold);font-weight:1000}.secret{color:#ffbdc5}.night{background:radial-gradient(circle at top,#172445 0,#080b12 55%)}
 @media(max-width:980px){.layout{grid-template-columns:1fr}.board{grid-template-columns:repeat(5,1fr)}.log{height:120px}}
 @media(max-width:700px){.app{padding:9px}.brand{font-size:21px}.panel{padding:10px;border-radius:14px}.board{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.seat{min-height:110px}.phase-main{font-size:17px}.chat-messages{height:160px}.chat-row{grid-template-columns:1fr}.chat-row .btn{width:100%}.row{flex-direction:column}.row .btn{width:100%}.timer{font-size:38px}.draw-card{width:175px;height:240px}.modal-card{padding:16px}}
+
+#narratorSpotlight{position:sticky;top:8px;z-index:80;margin:10px auto 16px;max-width:1320px;padding:14px 18px;border:2px solid #f5c451;border-radius:16px;background:rgba(18,24,39,.98);box-shadow:0 8px 28px rgba(0,0,0,.38);font-size:clamp(16px,2vw,22px);font-weight:800;line-height:1.45}
+#narratorSpotlight .narrator-title{font-size:.72em;opacity:.72;margin-bottom:3px}
+#narratorSpotlight .narrator-message{color:#ffd45c}
+@media(max-width:700px){#narratorSpotlight{top:5px;margin:6px 8px 12px;padding:11px 13px}}
 </style>
 </head>
-<body>
+<body><div id="narratorSpotlight"><div class="narrator-title">🎙️ AI 旁白／主持人</div><div id="narratorSpotlightMessage" class="narrator-message">等待遊戲開始</div></div>
 <div class="app">
   <div class="top"><div class="brand">🐺 狼人殺 334 Online</div><div id="netBadge" class="badge">尚未連線</div></div>
   <div class="layout">
@@ -145,5 +150,47 @@ function createRoom(){roomId=rid();myId=uid();isHost=true;peer=new Peer('ww-'+ro
 function joinRoom(){roomId=$('roomInput').value.trim().toUpperCase();if(roomId.length!==6){setStatus('請輸入 6 碼房號');return}myId=uid();isHost=false;peer=new Peer();peer.on('open',()=>{hostConn=peer.connect('ww-'+roomId,{reliable:true});hostConn.on('open',()=>{hostConn.send({type:'hello',name:$('nameInput').value.trim()||'玩家',id:myId});setStatus('正在加入房間…')});hostConn.on('data',m=>{if(m.type==='welcome'){mySeat=m.seat;game=m.game;setStatus(`已加入房間 ${roomId}，你是 ${mySeat+1} 號。`);render()}else if(m.type==='state'){game=m.game;render()}else if(m.type==='reject')setStatus(m.reason)});hostConn.on('close',()=>setStatus('與房主斷線'))});peer.on('error',e=>setStatus('連線錯誤：'+e.type))}
 function handleHostData(conn,m){if(m.type==='hello'){if(game.started||game.players.length>=MAX){conn.send({type:'reject',reason:'房間已開始或已滿'});return}const seat=addHuman(m.name,m.id,conn);conn.send({type:'welcome',seat,roomId,game:safeStateFor(seat)});log(`${m.name} 加入房間`);broadcast()}else if(m.type==='confirmRole'&&conn.seat!=null){game.confirmed[conn.seat]=true;broadcast();checkRevealDone()}else if(m.type==='chat'&&conn.seat!=null){const s=currentSpeaker();if(game.phase==='speech'&&conn.seat===s&&alive(s)){addChat(s,m.text,false);broadcast()}}else if(m.type==='vote'&&conn.seat!=null){if(game.phase==='vote'&&alive(conn.seat)){game.votes[game.players[conn.seat].id]=m.target;broadcast();checkVoteDone()}}else if(m.type==='action'&&conn.seat!=null)handleAction(conn.seat,m.action,m.target)}
 $('voiceBtn').onclick=()=>{voiceOn=!voiceOn;$('voiceBtn').textContent=voiceOn?'🔊 旁白語音：開':'🔇 旁白語音：關';if(!voiceOn&&'speechSynthesis'in window)speechSynthesis.cancel()};$('hostBtn').onclick=createRoom;$('joinBtn').onclick=joinRoom;$('startBtn').onclick=startGame;$('sendChatBtn').onclick=sendChat;$('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat()}});render();
+</script>
+
+<script>
+(function(){
+ const narratorIds=['narratorText','narratorMessage','aiNarratorText','hostText','narratorLog'];
+ function syncNarrator(){
+   const out=document.getElementById('narratorSpotlightMessage'); if(!out)return;
+   for(const id of narratorIds){const el=document.getElementById(id);if(el&&el.textContent.trim()){out.textContent=el.textContent.trim();return;}}
+ }
+ new MutationObserver(syncNarrator).observe(document.body,{subtree:true,childList:true,characterData:true});
+ setInterval(syncNarrator,400);
+
+ // 334 rule: only DAY-VOTE elimination gets last words.
+ window.canGiveLastWords=(cause)=>['vote','exile','day_vote'].includes(cause);
+
+ // Stronger local AI: analyze accusations, defenses, role claims, contradictions and vote history.
+ window.scoreWerewolfSuspects=function(players,chatHistory,voteHistory,self){
+   const s={}; (players||[]).forEach(p=>s[p.id]=0);
+   for(const m of (chatHistory||[])){
+     const body=String(m.text||m.message||'');
+     for(const p of (players||[])){
+       if(!body.includes(String(p.id)+'號'))continue;
+       if(/懷疑|踩|狼人|查殺|投|票|可疑|不信|假預|悍跳/.test(body))s[p.id]+=2.3;
+       if(/相信|金水|好人|保|站邊|不像狼/.test(body))s[p.id]-=1.15;
+     }
+     const sid=m.playerId||m.senderId;
+     if(sid!=null&&/改口|矛盾|前後不一/.test(body))s[sid]=(s[sid]||0)+1.25;
+   }
+   for(const v of (voteHistory||[]))if(v.targetId!=null)s[v.targetId]=(s[v.targetId]||0)+.5;
+   if(self&&/狼/.test(self.role||'')){
+     for(const p of (players||[]))if(/狼/.test(p.role||'')){
+       const doomed=(s[p.id]||0)>=5;
+       s[p.id]+=(doomed?-.2:-4.5);
+     }
+   }
+   if(self&&/預言家/.test(self.role||'')&&self.checks){
+     for(const [id,result] of Object.entries(self.checks))s[id]=(s[id]||0)+(String(result).includes('狼')?9:-4.5);
+   }
+   if(self)delete s[self.id];
+   return s;
+ };
+})();
 </script>
 </body></html>
