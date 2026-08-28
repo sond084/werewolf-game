@@ -29,7 +29,7 @@
 </div>
 
 <div class="app">
-  <div class="top"><div class="brand">🐺 狼人殺 334 Online <span style="font-size:12px;color:#f1c75b">V9</span></div><div id="netBadge" class="badge">尚未連線</div></div>
+  <div class="top"><div class="brand">🐺 狼人殺 334 Online <span style="font-size:12px;color:#f1c75b">V9.1</span></div><div id="netBadge" class="badge">尚未連線</div></div>
 <div id="narratorSpotlight"><div class="narrator-title">🎙️ AI 旁白｜目前流程</div><div id="narratorSpotlightMessage" class="narrator-message">等待遊戲開始</div></div>
   <div class="layout">
     <aside class="panel">
@@ -81,7 +81,7 @@ function alive(i){return !!game.players[i]&&!game.players[i].dead}function alive
 function faction(role){return role==='狼人'?'狼人陣營':'好人陣營'}
 function roleHelp(r){return r==='狼人'?'夜晚與其他狼人一起選擇一名玩家襲擊。':r==='預言家'?'每晚可查驗一名玩家，得知他屬於狼人或好人陣營。':r==='女巫'?'有一瓶解藥與一瓶毒藥，各只能使用一次。':r==='獵人'?'正常死亡或被放逐時可開槍帶走一人；若被女巫毒死則不能開槍。':'沒有夜間技能，靠發言與投票找出狼人。'}
 function wolfMatesFor(seat){return game.players.map((p,i)=>p.role==='狼人'&&i!==seat?i:null).filter(i=>i!==null)}
-function safeStateFor(seat){const g=JSON.parse(JSON.stringify(game));if(game.phase!=='gameover'){const wolfCanKnowMates=game.phase!=='lobby'&&game.phase!=='reveal'&&game.players[seat]?.role==='狼人';g.players=g.players.map((p,i)=>{const q={...p};if(i!==seat){q.role='';if(wolfCanKnowMates&&p.role==='狼人')q.role='狼人'}return q})}if(game.players[seat]?.role!=='女巫'&&g.phase==='night_witch')g.wolfTarget=null;if(game.players[seat]?.role!=='預言家'){g.seerTarget=null;g.seerResult=null}g.wolfVotes={};const own=game.players[seat];g.votes=own&&game.votes[own.id]!==undefined?{[own.id]:game.votes[own.id]}:{};return g}
+function safeStateFor(seat){const g=JSON.parse(JSON.stringify(game));if(game.phase!=='gameover'){const wolfCanKnowMates=game.phase!=='lobby'&&game.phase!=='reveal'&&game.players[seat]?.role==='狼人';g.players=g.players.map((p,i)=>{const q={...p};if(i!==seat){q.role='';if(wolfCanKnowMates&&p.role==='狼人')q.role='狼人'}return q})}if(game.players[seat]?.role!=='女巫'&&g.phase==='night_witch')g.wolfTarget=null;if(game.players[seat]?.role!=='預言家'){g.seerTarget=null;g.seerResult=null;g.seerChecks={}}g.wolfVotes={};const own=game.players[seat];g.votes=own&&game.votes[own.id]!==undefined?{[own.id]:game.votes[own.id]}:{};return g}
 function sendState(conn){if(!conn||!conn.open)return;const seat=conn.playerId?game.players.findIndex(p=>p.id===conn.playerId):conn.seat;if(seat>=0)conn.seat=seat;conn.send({type:'state',game:safeStateFor(seat),seat})}
 function broadcast(){if(!isHost)return;conns.forEach(sendState);render()}
 function addHuman(name,id,conn=null){if(game.players.length>=MAX)return-1;const seat=game.players.length;game.players.push({id,name:name||'玩家',ai:false,role:'',dead:false});if(conn)conn.seat=seat;return seat}
@@ -90,6 +90,19 @@ function fillAI(){
  while(game.players.length<MAX){
    game.players.push({id:'ai_'+uid(),name:'AI玩家'+labels[n++],ai:true,role:'',dead:false,aiProfile:null,aiMemory:{sus:{},trust:{},claims:{},notes:[],lastVote:null,spokenAbout:{},roundReads:{}}});
  }
+}
+function shuffleSeatsAtStart(){
+ shuffle(game.players);
+ game.players.forEach((p,i)=>{p.seat=i});
+ conns.forEach(c=>{
+   if(c&&c.playerId){
+     const ns=game.players.findIndex(p=>p.id===c.playerId);
+     if(ns>=0)c.seat=ns;
+   }
+ });
+ const me=game.players.findIndex(p=>p.id===myId);
+ if(me>=0)mySeat=me;
+ game.seatsShuffled=true;
 }
 function assignRoles(){const d=shuffle([...ROLE_DECK]);game.players.forEach((p,i)=>{p.role=d[i];p.seat=i})}
 function startGame(){if(!isHost||game.started)return;fillAI();shuffleSeatsAtStart();assignRoles();ensureAIProfiles();game.started=true;game.phase='reveal';game.round=0;game.confirmed={};game.chat=[];game.players.forEach((p,i)=>{if(p.ai)game.confirmed[i]=true});roleDrawn=false;selectedSeat=null;log(`10 個座位已隨機洗牌，身份牌也已重新洗牌：${game.players.filter(p=>!p.ai).length} 位真人、${game.players.filter(p=>p.ai).length} 位 AI。每位真人請只在自己的裝置抽卡確認身份。`);broadcast();openRoleModalIfNeeded();checkRevealDone()}
@@ -535,7 +548,7 @@ function updateNarrator(){
 }
 
 function createRoom(){if(typeof Peer==='undefined'){setStatus('連線模組尚未載入，請重新整理頁面後再試。');$('loadError').style.display='block';return}roomId=rid();myId=uid();isHost=true;peer=new Peer('ww-'+roomId);peer.on('open',()=>{mySeat=addHuman($('nameInput').value.trim()||'房主',myId);setStatus(`房間已建立：${roomId}\n把房號傳給朋友加入。`);log('房間建立成功');render()});peer.on('connection',conn=>{conns.push(conn);conn.on('data',m=>handleHostData(conn,m));conn.on('close',()=>{if(conn.seat!=null&&!game.started){const p=game.players[conn.seat];if(p){game.players.splice(conn.seat,1);conns.forEach(c=>{if(c.seat>conn.seat)c.seat--});log(`${p.name} 離開房間`);broadcast()}}})});peer.on('error',e=>setStatus('連線錯誤：'+e.type))}
-function joinRoom(){if(typeof Peer==='undefined'){setStatus('連線模組尚未載入，請重新整理頁面後再試。');$('loadError').style.display='block';return}roomId=$('roomInput').value.trim().toUpperCase();if(roomId.length!==6){setStatus('請輸入 6 碼房號');return}myId=uid();isHost=false;peer=new Peer();peer.on('open',()=>{hostConn=peer.connect('ww-'+roomId,{reliable:true});hostConn.on('open',()=>{hostConn.send({type:'hello',name:$('nameInput').value.trim()||'玩家',id:myId});setStatus('正在加入房間…')});hostConn.on('data',m=>{if(m.type==='welcome'){mySeat=m.seat;game=m.game;setStatus(`已加入房間 ${roomId}，你是 ${mySeat+1} 號。`);render()}else if(m.type==='state'){game=m.game;render()}else if(m.type==='reject')setStatus(m.reason)});hostConn.on('close',()=>setStatus('與房主斷線'))});peer.on('error',e=>setStatus('連線錯誤：'+e.type))}
+function joinRoom(){if(typeof Peer==='undefined'){setStatus('連線模組尚未載入，請重新整理頁面後再試。');$('loadError').style.display='block';return}roomId=$('roomInput').value.trim().toUpperCase();if(roomId.length!==6){setStatus('請輸入 6 碼房號');return}myId=uid();isHost=false;peer=new Peer();peer.on('open',()=>{hostConn=peer.connect('ww-'+roomId,{reliable:true});hostConn.on('open',()=>{hostConn.send({type:'hello',name:$('nameInput').value.trim()||'玩家',id:myId});setStatus('正在加入房間…')});hostConn.on('data',m=>{if(m.type==='welcome'){mySeat=m.seat;game=m.game;setStatus(`已加入房間 ${roomId}，你是 ${mySeat+1} 號。`);render()}else if(m.type==='state'){game=m.game;if(Number.isInteger(m.seat))mySeat=m.seat;render();openRoleModalIfNeeded()}else if(m.type==='reject')setStatus(m.reason)});hostConn.on('close',()=>setStatus('與房主斷線'))});peer.on('error',e=>setStatus('連線錯誤：'+e.type))}
 function handleHostData(conn,m){if(m.type==='hello'){if(game.started||game.players.length>=MAX){conn.send({type:'reject',reason:'房間已開始或已滿'});return}const seat=addHuman(m.name,m.id,conn);conn.playerId=m.id;conn.seat=seat;conn.send({type:'welcome',seat,roomId,game:safeStateFor(seat)});log(`${m.name} 加入房間`);broadcast()}else if(m.type==='confirmRole'&&conn.seat!=null){game.confirmed[conn.seat]=true;broadcast();checkRevealDone()}else if(m.type==='chat'&&conn.seat!=null){const s=currentSpeaker();if(game.phase==='speech'&&conn.seat===s&&alive(s)){addChat(s,m.text,false);broadcast()}}else if(m.type==='lastWordsChat'&&conn.seat!=null){if(game.phase==='last_words'&&conn.seat===game.lastWordsSeat){const text=String(m.text||'').trim().slice(0,200);if(text){game.lastWordsText=(game.lastWordsText?game.lastWordsText+' ':'')+text;addChat(conn.seat,'【遺言】'+text,false);broadcast()}}}else if(m.type==='vote'&&conn.seat!=null){if(game.phase==='vote'&&alive(conn.seat)){game.votes[game.players[conn.seat].id]=m.target;broadcast();checkVoteDone()}}else if(m.type==='action'&&conn.seat!=null)handleAction(conn.seat,m.action,m.target)}
 $('voiceBtn').onclick=()=>{voiceOn=!voiceOn;$('voiceBtn').textContent=voiceOn?'🔊 旁白語音：開':'🔇 旁白語音：關';if(!voiceOn&&'speechSynthesis'in window)speechSynthesis.cancel()};$('hostBtn').onclick=createRoom;$('joinBtn').onclick=joinRoom;$('startBtn').onclick=startGame;$('sendChatBtn').onclick=sendChat;$('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat()}});
 window.addEventListener('error', e=>{
