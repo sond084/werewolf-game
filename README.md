@@ -1,26 +1,21 @@
-# 10 人狼人殺 Online
+# 狼人殺 334 Online
 
-單一 HTML，適合部署到 GitHub Pages。
+單一 HTML 的 GitHub Pages 版本，手機與電腦皆可使用。
 
-## 功能
-- 10 人基本局
-- 3 狼人 / 預言家 / 女巫 / 獵人 / 4 平民
-- 房主建立 6 碼房號
-- 玩家用房號加入
-- 真人不足 10 人，房主開始時自動補 AI
-- 每位玩家 30 秒發言
-- AI 自動產生簡短發言
-- 簡易投票介面
+## 玩法
+- 10 人 334 局：3 狼人、3 神（預言家／女巫／獵人）、4 平民。
+- 真人可 1～10 人；開始時不足 10 人會自動補 AI 玩家。
+- AI 旁白是主持人，不佔玩家座位。
+- 真人開局各自在自己的裝置點擊抽卡，只有本人能看到自己的身份。
+- 狼人可以看到狼隊友；其他身份不公開，遊戲結束才公開全員身份。
+- AI 玩家會自動完成夜間技能、白天發言與投票。
+- 白天發言不限時間，超過 1 分鐘顯示提醒。
+- 勝負採 334 屠邊：狼人全死＝好人勝；3 神全死或 4 平民全死＝狼人勝。
 
 ## GitHub Pages
-1. 建立一個新的 GitHub Repository
-2. 上傳 `index.html`
-3. Settings → Pages
-4. Build and deployment 選 `Deploy from a branch`
-5. Branch 選 `main` / `(root)`
-6. 儲存，等待 Pages 網址產生
+1. 建立 Public Repository。
+2. 上傳 `index.html`。
+3. Settings → Pages → Deploy from a branch。
+4. Branch 選 `main`，資料夾選 `/(root)`，儲存。
 
-## 連線說明
-本版使用 PeerJS 公開 signaling server，GitHub Pages 本身只負責靜態網頁。房主是遊戲連線核心，所以房主關閉分頁後房間會中斷。
-
-若要做到正式產品級房間、斷線重連、永久房間、語音、帳號與戰績，需要改用 Firebase / Supabase / WebSocket 後端。
+> 本版使用 PeerJS 進行瀏覽器 P2P 房間連線，因此房主需保持頁面開啟。
