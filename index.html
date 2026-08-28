@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>10人狼人殺｜線上房間</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root{--bg:#0f1118;--panel:#171b26;--panel2:#202637;--text:#f5f7fb;--muted:#9aa4b5;--red:#e25252;--blue:#4c8dff;--green:#43c17b;--gold:#f4c95d;--line:#30384d}
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft JhengHei",sans-serif;background:radial-gradient(circle at top,#202a43 0,#0f1118 45%);color:var(--text);min-height:100vh}
+button,input{font:inherit}.app{max-width:1280px;margin:auto;padding:20px}.top{display:flex;gap:14px;align-items:center;justify-content:space-between;margin-bottom:14px}.brand{font-weight:900;font-size:28px}.badge{background:#242b3c;border:1px solid var(--line);padding:6px 10px;border-radius:999px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:340px 1fr;gap:14px}.panel{background:rgba(23,27,38,.94);border:1px solid #2a3144;border-radius:18px;padding:16px;box-shadow:0 18px 50px #0005}.section-title{font-size:15px;color:#cbd4e4;margin:0 0 10px}.row{display:flex;gap:8px}.row>*{min-width:0}.input{width:100%;background:#0f1320;color:white;border:1px solid #353e54;border-radius:12px;padding:11px 12px;outline:none}.btn{border:0;border-radius:12px;padding:11px 14px;font-weight:800;cursor:pointer;background:#33415f;color:white}.btn.primary{background:var(--blue)}.btn.danger{background:var(--red)}.btn.good{background:var(--green);color:#06150d}.btn.gold{background:var(--gold);color:#241b00}.btn:disabled{opacity:.4;cursor:not-allowed}
+.note{font-size:13px;line-height:1.6;color:var(--muted)}.roomcode{font-size:28px;font-weight:900;letter-spacing:4px;color:var(--gold);text-align:center;padding:8px}.status{margin-top:10px;padding:10px;border-radius:12px;background:#101521;color:#b9c4d8;min-height:44px;white-space:pre-line}
+.board{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.seat{position:relative;background:linear-gradient(180deg,#242c3e,#171c28);border:1px solid #333d54;border-radius:16px;min-height:150px;padding:12px;display:flex;flex-direction:column;justify-content:space-between;transition:.2s}.seat.me{outline:2px solid var(--blue)}.seat.dead{filter:grayscale(.8);opacity:.5}.seat.speaking{box-shadow:0 0 0 2px var(--gold),0 0 30px #f4c95d44}.seat.selected{box-shadow:0 0 0 2px var(--red)}.seat .num{font-size:12px;color:#7f8ba2}.seat .name{font-size:18px;font-weight:900}.seat .meta{font-size:12px;color:#a8b2c6}.role{font-size:13px;font-weight:800;color:var(--gold)}.ai{color:#7ec8ff}.human{color:#75e2a8}.speaker{margin-top:14px;background:#111625;border:1px solid #2e3850;border-radius:16px;padding:16px}.speaker-head{display:flex;justify-content:space-between;align-items:center}.timer{font-size:36px;font-weight:1000;color:var(--gold)}.speech{margin-top:8px;color:#dbe3f1;min-height:48px;line-height:1.6}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.log{height:220px;overflow:auto;background:#0d111c;border:1px solid #2e364a;border-radius:14px;padding:10px;font-size:13px;line-height:1.6}.log div{border-bottom:1px dashed #222a3b;padding:4px 0}.small{font-size:12px;color:var(--muted)}
+@media(max-width:900px){.grid{grid-template-columns:1fr}.board{grid-template-columns:repeat(2,1fr)}.seat{min-height:125px}.brand{font-size:22px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><div class="brand">🐺 10人狼人殺 Online</div><div class="badge" id="netBadge">尚未連線</div></div>
+  <div class="grid">
+    <aside class="panel">
+      <h3 class="section-title">建立／加入房間</h3>
+      <input id="nameInput" class="input" maxlength="10" placeholder="輸入暱稱" value="玩家" />
+      <div class="row" style="margin-top:8px"><button id="hostBtn" class="btn primary" style="flex:1">建立房間</button><button id="joinBtn" class="btn" style="flex:1">加入房間</button></div>
+      <input id="roomInput" class="input" style="margin-top:8px;text-transform:uppercase" maxlength="6" placeholder="輸入 6 碼房號" />
+      <div class="roomcode" id="roomCode">------</div>
+      <div class="note">房主建立後，把房號傳給朋友。最多 10 位真人，按「開始遊戲」時不足的人數會自動補 AI。</div>
+      <hr style="border-color:#293145;border-width:1px 0 0;margin:15px 0">
+      <h3 class="section-title">基本 10 人配置</h3>
+      <div class="note">🐺 狼人 ×3<br>🔮 預言家 ×1<br>🧪 女巫 ×1<br>🎯 獵人 ×1<br>👤 平民 ×4</div>
+      <div class="actions"><button id="startBtn" class="btn good" disabled>開始遊戲</button><button id="nextBtn" class="btn gold" disabled>下一位發言</button></div>
+      <div id="status" class="status">請建立或加入房間。</div>
+      <h3 class="section-title" style="margin-top:14px">遊戲紀錄</h3>
+      <div id="log" class="log"></div>
+    </aside>
+
+    <main class="panel">
+      <div id="board" class="board"></div>
+      <div class="speaker">
+        <div class="speaker-head"><div><div class="small">目前發言</div><div id="speakerName" style="font-size:22px;font-weight:900">尚未開始</div></div><div id="timer" class="timer">30</div></div>
+        <div id="speech" class="speech">每位玩家都有 30 秒發言時間。AI 會自動產生簡短發言。</div>
+        <div class="actions">
+          <button id="voteBtn" class="btn danger" disabled>投票放逐選中玩家</button>
+          <button id="skipBtn" class="btn" disabled>棄票</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script>
+const MAX=10, SPEAK=30;
+let isHost=false, peer=null, hostConn=null, conns=[], roomId='', myId='', mySeat=-1;
+let game={players:[],started:false,phase:'lobby',speakerIndex:0,time:SPEAK,votes:{},round:0};
+let timerHandle=null, selectedSeat=null;
+const $=id=>document.getElementById(id);
+const roles=['狼人','狼人','狼人','預言家','女巫','獵人','平民','平民','平民','平民'];
+const aiNames=['冠瑋','阿庭','程程','瀚瀚','妹妹','小凱','阿杰','小羽','小安','阿哲'];
+const aiLines=[
+  '我先聽前面幾位的發言，目前沒有特別想站邊。',
+  '我覺得剛剛那位講得有點保守，可能要多注意一下。',
+  '目前資訊太少，我先不亂踩人，等預言家跳身份。',
+  '我覺得場上一定有人在帶風向，大家先記一下發言順序。',
+  '如果今天要出人，我會比較想從發言矛盾的人裡面選。',
+  '我先表水，我是好人牌，沒有額外資訊。',
+  '前面有兩個人的邏輯不太一致，我先保留票。'
+];
+function rid(){return Math.random().toString(36).slice(2,8).toUpperCase()}
+function uid(){return Math.random().toString(36).slice(2,10)}
+function log(t){const d=document.createElement('div');d.textContent='['+new Date().toLocaleTimeString()+'] '+t;$('log').prepend(d)}
+function setStatus(t){$('status').textContent=t}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function publicGame(){return JSON.parse(JSON.stringify(game))}
+function broadcast(){if(!isHost)return;conns.forEach(c=>{if(c.open)c.send({type:'state',game:publicGame()})});render()}
+function render(){
+ $('netBadge').textContent=roomId?(isHost?'房主｜'+roomId:'已連線｜'+roomId):'尚未連線'; $('roomCode').textContent=roomId||'------';
+ $('startBtn').disabled=!isHost||game.started; $('nextBtn').disabled=!isHost||!game.started;
+ $('voteBtn').disabled=!game.started||selectedSeat===null; $('skipBtn').disabled=!game.started;
+ const b=$('board');b.innerHTML='';
+ for(let i=0;i<MAX;i++){
+   const p=game.players[i];const d=document.createElement('div'); d.className='seat'+(i===mySeat?' me':'')+(p?.dead?' dead':'')+(game.started&&i===game.speakerIndex?' speaking':'')+(selectedSeat===i?' selected':'');
+   d.onclick=()=>{if(game.started&&p&&!p.dead&&i!==mySeat){selectedSeat=i;render()}};
+   if(p){const role=(i===mySeat||isHost&&p.ai)?`<div class="role">${p.role?('身份：'+p.role):''}</div>`:''; d.innerHTML=`<div><div class="num">${i+1} 號</div><div class="name">${p.name}</div><div class="meta ${p.ai?'ai':'human'}">${p.ai?'AI 電腦':'真人玩家'} ${p.dead?'｜已出局':''}</div></div>${role}`}
+   else d.innerHTML=`<div><div class="num">${i+1} 號</div><div class="name" style="color:#667085">等待玩家</div><div class="meta">開始時由 AI 補位</div></div>`;
+   b.appendChild(d)
+ }
+ const sp=game.players[game.speakerIndex]; $('speakerName').textContent=game.started&&sp?`${game.speakerIndex+1}號 ${sp.name}`:'尚未開始'; $('timer').textContent=game.started?game.time:SPEAK;
+}
+function addHuman(name,id,conn=null){if(game.players.length>=MAX)return -1;const seat=game.players.length;game.players.push({id,name:name||'玩家',ai:false,role:'',dead:false});if(conn)conn.seat=seat;return seat}
+function fillAI(){let idx=0;while(game.players.length<MAX){let n=aiNames[idx++%aiNames.length];if(game.players.some(p=>p.name===n))n+='AI';game.players.push({id:'ai_'+uid(),name:n,ai:true,role:'',dead:false})}}
+function assignRoles(){const rs=shuffle([...roles]);game.players.forEach((p,i)=>p.role=rs[i])}
+function startGame(){fillAI();assignRoles();game.started=true;game.phase='speech';game.speakerIndex=0;game.time=SPEAK;game.votes={};game.round=1;selectedSeat=null;log('遊戲開始，真人不足座位已由 AI 補滿。');broadcast();startTimer();aiSpeakIfNeeded()}
+function startTimer(){clearInterval(timerHandle);timerHandle=setInterval(()=>{if(!isHost||!game.started)return;game.time--;if(game.time<=0){nextSpeaker()}else broadcast()},1000)}
+function nextSpeaker(){game.time=SPEAK;let tries=0;do{game.speakerIndex=(game.speakerIndex+1)%MAX;tries++}while(game.players[game.speakerIndex]?.dead&&tries<MAX);broadcast();aiSpeakIfNeeded()}
+function aiSpeakIfNeeded(){if(!isHost)return;const p=game.players[game.speakerIndex];if(p?.ai&&!p.dead){$('speech').textContent='AI 思考中…';setTimeout(()=>{const line=aiLines[Math.floor(Math.random()*aiLines.length)];$('speech').textContent=line;log(`${p.name}：${line}`);broadcast()},700)}else if(p){$('speech').textContent=`輪到 ${p.name} 發言，限時 30 秒。`}}
+function castVote(target){if(!game.started)return;const voter=game.players[mySeat];if(!voter)return; if(isHost){game.votes[voter.id]=target;log(`${voter.name} 已投票。`);broadcast()}else hostConn?.send({type:'vote',target}); selectedSeat=null;render()}
+function handleHostData(conn,msg){
+ if(msg.type==='hello'){
+   if(game.started||game.players.length>=MAX){conn.send({type:'reject',reason:'房間已開始或已滿'});return}
+   const seat=addHuman(msg.name,msg.id,conn);conn.send({type:'welcome',seat,roomId,game:publicGame()});log(`${msg.name} 加入房間`);broadcast();
+ }else if(msg.type==='vote'&&conn.seat!=null){const p=game.players[conn.seat];game.votes[p.id]=msg.target;log(`${p.name} 已投票。`);broadcast()}
+}
+function createRoom(){
+ roomId=rid();myId=uid();isHost=true;peer=new Peer('ww-'+roomId);
+ peer.on('open',()=>{mySeat=addHuman($('nameInput').value.trim()||'房主',myId);setStatus(`房間已建立：${roomId}\n把房號傳給朋友加入。`);log('房間建立成功');render()});
+ peer.on('connection',conn=>{conns.push(conn);conn.on('data',m=>handleHostData(conn,m));conn.on('close',()=>{if(conn.seat!=null&&!game.started){const p=game.players[conn.seat];if(p){game.players.splice(conn.seat,1);conns.forEach(c=>{if(c.seat>conn.seat)c.seat--});log(`${p.name} 離開房間`);broadcast()}}})});
+ peer.on('error',e=>setStatus('連線錯誤：'+e.type));
+}
+function joinRoom(){
+ roomId=$('roomInput').value.trim().toUpperCase();if(roomId.length!==6){setStatus('請輸入 6 碼房號');return}myId=uid();isHost=false;peer=new Peer();
+ peer.on('open',()=>{hostConn=peer.connect('ww-'+roomId,{reliable:true});hostConn.on('open',()=>{hostConn.send({type:'hello',name:$('nameInput').value.trim()||'玩家',id:myId});setStatus('正在加入房間…')});hostConn.on('data',m=>{if(m.type==='welcome'){mySeat=m.seat;game=m.game;setStatus(`已加入房間 ${roomId}，你是 ${mySeat+1} 號。`);log('加入房間成功');render()}else if(m.type==='state'){game=m.game;render();const p=game.players[game.speakerIndex];if(game.started&&p?.ai)$('speech').textContent='AI 正在發言…';else if(game.started&&p)$('speech').textContent=`輪到 ${p.name} 發言，限時 30 秒。`}else if(m.type==='reject'){setStatus(m.reason)}});hostConn.on('close',()=>setStatus('與房主斷線'))});
+ peer.on('error',e=>setStatus('連線錯誤：'+e.type));
+}
+$('hostBtn').onclick=createRoom;$('joinBtn').onclick=joinRoom;$('startBtn').onclick=startGame;$('nextBtn').onclick=nextSpeaker;$('voteBtn').onclick=()=>castVote(selectedSeat);$('skipBtn').onclick=()=>castVote(-1);
+render();
+</script>
+</body>
+</html>
